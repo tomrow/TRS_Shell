@@ -546,7 +546,7 @@ def crcHexStr(dataIn):
 def crcHexFile(path):
     handle = open(path,"rb")
     handle.seek(0,2)
-    size = handle.tell()
+    size = handle.tell()-1
     handle.seek(0,0)
     crc = crc32(handle.read(1))
     while handle.tell() <= size:
