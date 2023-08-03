@@ -548,9 +548,10 @@ def crcHexFile(path):
     handle.seek(0,2)
     size = handle.tell()
     handle.seek(0,0)
-    crc = binascii.crc32(handle.read(1))
+    crc = crc32(handle.read(1))
     while handle.tell() <= size:
         crc = crc32(handle.read(1), crc)
+    handle.close()
     return hexlify(crc)
     
     
