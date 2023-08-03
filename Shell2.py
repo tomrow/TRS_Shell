@@ -6,7 +6,6 @@ from math import ceil
 import machine
 import sys
 import hashlib
-from binascii import hexlify
 from binascii import crc32
 beepfreq = 8000
 beepdur = 40
@@ -541,7 +540,7 @@ def picoMgr():
     
 
 def crcHexStr(dataIn):
-    return hexlify(binascii.crc32(dataIn))
+    return hex(crc32(dataIn))[2:]
     
 def crcHexFile(path):
     handle = open(path,"rb")
@@ -552,7 +551,7 @@ def crcHexFile(path):
     while handle.tell() <= size:
         crc = crc32(handle.read(1), crc)
     handle.close()
-    return hexlify(crc)
+    return hex(crc)[2:]
     
     
 def loopWriteSer(handle): #file needs to be open()ed before this is called
@@ -599,15 +598,7 @@ def copyAbsoluteOverwrite(source,destination,delSource):
         ConsoleWriteLine("Source file removed")
 
 
-#def md5Sum(path)
-#    ingest = open(path,"rb")
-#    hashalg = hashlib.md5(ingest)
-#    return hexlify(hashalg.digest())
 
-#print("start")
-#ConsoleWriteLine("1\n2\n3\n4\n5")
-#ConsoleWriteLine("1234567\n test")
-#exec("ConsoleWriteLine(\"exec()\\n test\")")
 while True:
     prompt(getLineInput(""))
 time.sleep(5)
