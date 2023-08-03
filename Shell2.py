@@ -563,7 +563,7 @@ def loopWriteSer(handle): #file needs to be open()ed before this is called
         decimal = int(input())
         if not decimal in range(0,255):
             raise ValueError()
-        if gaetFreeSpaceBlocks() < 3:
+        if getFreeSpaceBlocks() < 3:
             raise OSError(28)
         handle.write(decimal.to_bytes(1,"little")) #screw endianness, I'm using single bytes
         #I think I can just leave the subroutine like this, we'll see if anything goes wrong
