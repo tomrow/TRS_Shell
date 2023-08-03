@@ -7,6 +7,7 @@ import machine
 import sys
 import hashlib
 from binascii import hexlify
+from binascii import crc32
 beepfreq = 8000
 beepdur = 40
 trs_shell_ver = 05
@@ -554,7 +555,7 @@ def crcHexFile(path):
     handle.seek(0,0)
     crc = binascii.crc32(handle.read(1))
     while handle.tell() <= size:
-        crc = binascii.crc32(handle.read(1), crc)
+        crc = crc32(handle.read(1), crc)
     return hexlify(crc)
     
     
