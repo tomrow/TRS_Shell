@@ -1,31 +1,80 @@
+#TRS_Shell 2
 import os
-import thumby
 import time
 import gc
+import gcAbstractor
 from math import ceil
+from math import floor
 import machine
 import sys
 import hashlib
 from binascii import crc32
-beepfreq = 8000
+def doesExist(path):
+    try:
+        os.stat(path)
+        return True
+    except:
+        return False
+mColor = gcAbstractor.monoColor
+beepfreq = 4040
 beepdur = 40
+beepvol = 100
 trs_shell_ver = 05
-thumby.display.setFPS(60)
+rows = floor(gcAbstractor.ScreenHeight()/gcAbstractor.FixedWidthFontSize()[1])-1
+print(rows)
+columns = floor(gcAbstractor.ScreenWidth()/gcAbstractor.FixedWidthFontSize()[0])
+fw=gcAbstractor.FixedWidthFontSize()[0]
+fh=gcAbstractor.FixedWidthFontSize()[1]
+#thumby.display.setFPS(60)
 #wd = "/"
-textArea = ["","","",""]
+textArea = []
+for i in range(rows):
+    textArea.append("")
 textAreaWindowBottom = len(textArea)-1
 global inputSpace
 inputSpace = True
+fontOverRide = False
+if doesExist("/lib/thumby.py"):
+    fontOverRide = True
+else:
+    font = open('/font.bin', 'rb')
+pressedCheck = []
+psv = None
+try:
+    psv=Voice()
+    psv.envelope(0,0,100,0)
+    #this sets up adsr envelope, each value in the order of the acronym.
+    #0ms atk,0ms dcy,100% stn, 0ms rel
+    psv.bend(0,0)
+    #this sets up pitch bend.
+    #0hz amount, 0 milliseconds duration.
+    psv.effects(0,0,0)
+    #sets up fx. 
+    #0 ms reverb, 0 ms noise, 0% distort
+    v=gcAbstractor.AbstractAudio(psv)
+except Exception as errorInfo:
+    print("sound module is not picosystem")
+    v=gcAbstractor.AbstractAudio(None)
+
+def drawText(string,x,y,colorWord,proportional):
+    global font
+    global fontOverRide
+    colorWord = gcAbstractor.monoColor(colorWord)
+    if proportional or fontOverRide:
+        gcAbstractor.originalText(string,x,y,colorWord)
+    else:
+        gcAbstractor.drawMonoSpaceText(string,x,y,colorWord,font,gcAbstractor.FixedWidthFontSize()[0])
+
 def ConsoleSplitter(pendingOut):
     #12 characters per line for 5x7 font
     toAppend = []
-    charDump = ""
+    charDump = ''
     for i in range(len(pendingOut)):
         charDump = charDump + pendingOut[i]
         if charDump[-1] == "\n":
             toAppend.append(charDump[:-1])
             charDump = ""
-        if len(charDump)==12:
+        if len(charDump)==columns:
             toAppend.append(charDump)
             charDump = ""
     if len(charDump)>0:
@@ -48,15 +97,16 @@ def CullConsoleHistory(maxLines):
     return 0
         
 def drawConsoleToScreen(winBottom):
-    thumby.display.fill(0)
-    screenLines = 5
-    if inputSpace:
-        #//draw Text Box
-        screenLines = 4
+    gcAbstractor.monoFill(0)
+    screenLines = rows
+    #if inputSpace:
+    #    #//draw text Box
+    #    screenLines = rows - 1
     for line in range(screenLines):
-        pos = 5 - screenLines
-        thumby.display.drawText(textArea[winBottom-line],0,(screenLines-line-pos)*8,1)
-    thumby.display.update()
+        pos = rows - screenLines
+        #drawText(textArea[winBottom-line],0,(screenLines-line-pos)*gcAbstractor.FixedWidthFontSize()[1],mColor(1),False)
+        drawText(textArea[winBottom-line], 0, fh*(screenLines-(1+line)), mColor(1),False)
+    gcAbstractor.updDisplay()
     
     
 def getLineInput(start):
@@ -70,6 +120,10 @@ def getLineInput(start):
     global textAreaWindowBottom
     global beepfreq
     global beepdur
+    global beepvol
+    global pressedCheck
+    global rows
+    global ScreenWidth
     prevInputSpace = inputSpace
     inputSpace = True
     textAreaWindowBottom = len(textArea)-1
@@ -82,19 +136,17 @@ def getLineInput(start):
     counter = 0
     justPressed = []
     while editing:
-        justPressed = []
-        justPressed.append(thumby.buttonU.justPressed())
-        justPressed.append(thumby.buttonD.justPressed())
-        justPressed.append(thumby.buttonL.justPressed())
-        justPressed.append(thumby.buttonR.justPressed())
-        justPressed.append(thumby.buttonA.justPressed())
-        justPressed.append(thumby.buttonB.justPressed())
+        justPressed = gcAbstractor.justPressedList()
         #print("editing tick")
         if True in justPressed:
-            thumby.audio.play(beepfreq, beepdur)
-        if thumby.buttonB.pressed():
+            v.play(beepfreq, beepdur, beepvol)
+        if gcAbstractor.keyY():
+            inputString = Quickies(inputString)
+        if gcAbstractor.keyX():
+            editing = False 
+        if gcAbstractor.keyB():
             #print("b pushed")
-            if thumby.buttonA.pressed():
+            if gcAbstractor.keyA():
                 if justPressed[u]:
                     textAreaWindowBottom -= 1
                     if textAreaWindowBottom < 3:
@@ -123,7 +175,7 @@ def getLineInput(start):
                 if justPressed[d]:
                     newCharacter -= 32
                     counter = 0
-        elif thumby.buttonA.pressed():
+        elif gcAbstractor.keyA():
             if justPressed[r]:
                 newCharacter = ord("(")
             if justPressed[u]:
@@ -154,17 +206,17 @@ def getLineInput(start):
             newCharacter = 32
         if newCharacter>126:
             newCharacter = 126
-        viewPos = len(inputString) - 11 if len(inputString) > 11 else 0
-        thumby.display.drawFilledRectangle(0, 4*8, 72, 8, 1)
-        thumby.display.drawText(inputString[viewPos:],0,4*8,0)
-        thumby.display.drawFilledRectangle(11*6, 4*8, 6, 8, 0)
+        viewPos = len(inputString) - (columns-1) if len(inputString) > (columns-1) else 0
+        gcAbstractor.monoRectF(0, rows*fh, gcAbstractor.ScreenWidth(), fh, 1)
+        drawText(inputString[viewPos:],0,rows*fh,0,False)
+        gcAbstractor.monoRectF(gcAbstractor.ScreenWidth()-fw, rows*fh, fw, fh, 0)
         counter = (counter + 1) % 15
         if viewPos>0:
-            thumby.display.drawFilledRectangle(0, 4*8, 6, 8, 1)
-            thumby.display.drawText("<",0,4*8,0)
+            gcAbstractor.monoRectF(0, rows*fh, fw, fh, 1)
+            drawText("<",0,rows*fh,0,False)
         if counter<7:
-            thumby.display.drawText(chr(newCharacter),11*6, 4*8,1)
-        thumby.display.update()
+            drawText(chr(newCharacter),gcAbstractor.ScreenWidth()-fw, rows*fh,1,False)
+        gcAbstractor.updDisplay()
     return inputString
 
 def prompt(inPrompt):
@@ -195,29 +247,7 @@ def ls():
     ConsoleWriteLine('\n'.join(os.listdir()))
 
 
-#def cd(path):
-#    global wd
-#    if str(type(path)) == "<class 'str'>" and len(path)>0:
-#        if path[0]!="/":
-#            if os.stat(wd+"/"+path)[0] == 16384:
-#                wd = wd+"/"+path
-#            else:
-#                raise Exception("\nThis is not a directory")
-#        else:
-#            if os.stat(path)[0] == 16384:
-#                wd=path
-#            else:
-#                raise Exception("\nThis is not a directory")
-#    
-#        if wd[0]=="/" and wd[1]=="/":
-#            wd=wd[1:]
-#        pathList = wd.split("/")
-#        for i in range(len(pathList)):
-#            if pathList[i] == "..":
-#                pathList.pop(i-1)
-#                pathList.pop(i-1)
-#                wd = "/".join(pathList)
-#    pwd()
+
 def cd(path):
     os.chdir(path)
     pwd()
@@ -225,115 +255,24 @@ def pwd():
     ConsoleWriteLine(os.getcwd())
 
 def ConfirmChoice(caption):
-    thumby.display.fill(1)
-    thumby.display.drawText(caption,0,0,0)
-    thumby.display.drawText(" A:Yes B:No",0,4*8,0)
-    while thumby.buttonA.pressed() or thumby.buttonB.pressed():
+    gcAbstractor.monoFill(1)
+    drawText(caption,0,0,0,False)
+    drawText(" A:Yes B:No",0,rows*fh,0,False)
+    while gcAbstractor.keyA() or gcAbstractor.keyB():
         time.sleep(0.3)
     while True:                 #confirm replace
-        thumby.display.update()
-        if thumby.buttonA.pressed():   
+        gcAbstractor.updDisplay()
+        if gcAbstractor.keyA():   
             drawConsoleToScreen(textAreaWindowBottom)
             return True
-        if thumby.buttonB.pressed():
+        if gcAbstractor.keyB():
             drawConsoleToScreen(textAreaWindowBottom)
             return False
-    #thumby.display.fill(1)
-    #thumby.display.drawText("A:OK B:Cancl",0,4*8,0)
-    #thumby.display.drawText("Shortcuts-",0,0,0)
     drawConsoleToScreen(textAreaWindowBottom)
     
-def QuickiesOld(editline):
-    global inputSpace
-    global beepfreq
-    global beepdur
-    u = 0
-    d = 1
-    l = 2
-    r = 3
-    a = 4
-    b = 5
-    global textAreaWindowBottom
-    quickiesList = [
-        "cd(\"",
-        "pwd()",
-        "sh_help()",
-        "ls()",
-        "echo(\"",
-        "ipt(\"",
-        "type(\"",
-        "f=open(\"",
-        "f.write(\"",
-        "g=f.read()",
-        "f.close()",
-        "os.remove(\"",
-        "os.rmdir(\"",
-        "os.mkdir(\"",
-        "gc.collect()",
-        "CullConsoleHistory(4)",
-        "beepfreq=",
-        "beepdur=", "usbin()" ]
-    quickiesIndex = 0
-    thumby.display.fill(1)
-    thumby.display.drawText("Shortcuts-",0,0,0)
-    while thumby.buttonA.pressed() or thumby.buttonB.pressed():
-        print("waiting")
-        time.sleep(0.3)
-    thumby.display.drawText("A:OK B:Cancl",0,4*8,0)
-    selecting = True
-    output = editline
-    justPressed = []
-    while selecting:
-        justPressed = []
-        justPressed.append(thumby.buttonU.justPressed())
-        justPressed.append(thumby.buttonD.justPressed())
-        justPressed.append(thumby.buttonL.justPressed())
-        justPressed.append(thumby.buttonR.justPressed())
-        justPressed.append(thumby.buttonA.justPressed())
-        justPressed.append(thumby.buttonB.justPressed())
-        #while thumby.buttonB.pressed():
-        #    print("waiting")
-        #    time.sleep(0.3)
-        #print("select start")
-        if True in justPressed:
-            thumby.audio.play(beepfreq, beepdur)
-        thumby.display.fill(1)
-        thumby.display.drawText("A:OK B:Cancl",0,4*8,0)
-        thumby.display.drawText("Shortcuts-",0,0,0)
-        thumby.display.drawText(str(quickiesIndex),10*6,0,0)
-        thumby.display.drawText(quickiesList[quickiesIndex],0,16,0)
-        thumby.display.update()
-        if justPressed[u]:
-            print("up")
-            quickiesIndex -=1
-            if quickiesIndex<0:               #scroll up
-                quickiesIndex = 0
-        
-        if justPressed[d]:
-            print("down")
-            quickiesIndex +=1                 #scroll down
-            if quickiesIndex>len(quickiesList)-1:
-                quickiesIndex = len(quickiesList)-1
-        
-        if thumby.buttonB.pressed():
-            print("b")
-            drawConsoleToScreen(textAreaWindowBottom)
-            return editline                   #cancel
 
-        if thumby.buttonA.pressed():
-            print("a")
-            if ConfirmChoice("Confirm?"):
-                drawConsoleToScreen(textAreaWindowBottom)
-                return quickiesList[quickiesIndex]
-            while thumby.buttonA.pressed() or thumby.buttonB.pressed():
-                time.sleep(0.3)
 
-def doesExist(path):
-    try:
-        os.stat(path)
-        return True
-    except:
-        return False
+
 
 def isFolder(path):
     if doesExist(path):
@@ -435,9 +374,12 @@ def usbin():
         prompt(input())
 
 def TextMenu(editline, quickiesList, menuTitle):
+    print(editline)
     global inputSpace
     global beepfreq
     global beepdur
+    global beepvol
+    global pressedCheck
     u = 0
     d = 1
     l = 2
@@ -446,58 +388,54 @@ def TextMenu(editline, quickiesList, menuTitle):
     b = 5
     global textAreaWindowBottom
     quickiesIndex = 0
-    thumby.display.fill(1)
-    thumby.display.drawText(menuTitle,0,0,0)
-    while thumby.buttonA.pressed() or thumby.buttonB.pressed():
+    gcAbstractor.monoFill(1)
+    drawText(menuTitle,0,0,0,False)
+    while gcAbstractor.keyA() or gcAbstractor.keyB():
         print("waiting")
         time.sleep(0.3)
-    thumby.display.drawText("A:OK B:Cancl",0,4*8,0)
+    drawText("A:OK B:Cancel",0,rows*fh,0,False)
     selecting = True
     output = editline
     justPressed = []
     while selecting:
-        justPressed = []
-        justPressed.append(thumby.buttonU.justPressed())
-        justPressed.append(thumby.buttonD.justPressed())
-        justPressed.append(thumby.buttonL.justPressed())
-        justPressed.append(thumby.buttonR.justPressed())
-        justPressed.append(thumby.buttonA.justPressed())
-        justPressed.append(thumby.buttonB.justPressed())
-        #while thumby.buttonB.pressed():
+        justPressed = gcAbstractor.justPressedList()
+        #while gcAbstractor.keyB():
         #    print("waiting")
         #    time.sleep(0.3)
         #print("select start")
         if True in justPressed:
-            thumby.audio.play(beepfreq, beepdur)
-        thumby.display.fill(1)
-        thumby.display.drawText("A:OK B:Cancl",0,4*8,0)
-        thumby.display.drawText(menuTitle,0,0,0)
-        thumby.display.drawText(str(quickiesIndex),10*6,0,0)
-        thumby.display.drawText(quickiesList[quickiesIndex],0,16,0)
-        thumby.display.update()
+            v.play(beepfreq, beepdur, beepvol)
+        drawText("A:OK B:Cancel",0,rows*fh,0,False)
+        drawText(menuTitle,0,0,0,False)
+        drawText(str(quickiesIndex),gcAbstractor.ScreenWidth()-(fw*2),0,0,False)
+        drawText(quickiesList[quickiesIndex],0,fw*2,0,False)
+        time.sleep(0.02)
+        gcAbstractor.updDisplay()
         if justPressed[u]:
             print("up")
             quickiesIndex -=1
+            gcAbstractor.monoFill(1)
             if quickiesIndex<0:               #scroll up
                 quickiesIndex = 0
         
         if justPressed[d]:
             print("down")
             quickiesIndex +=1                 #scroll down
+            gcAbstractor.monoFill(1)
             if quickiesIndex>len(quickiesList)-1:
                 quickiesIndex = len(quickiesList)-1
         
-        if thumby.buttonB.pressed():
+        if gcAbstractor.keyB():
             print("b")
             drawConsoleToScreen(textAreaWindowBottom)
             return editline                   #cancel
 
-        if thumby.buttonA.pressed():
+        if gcAbstractor.keyA():
             print("a")
             if ConfirmChoice("Confirm?"):
                 drawConsoleToScreen(textAreaWindowBottom)
                 return quickiesList[quickiesIndex]
-            while thumby.buttonA.pressed() or thumby.buttonB.pressed():
+            while gcAbstractor.keyA() or gcAbstractor.keyB():
                 time.sleep(0.3)
 
 def Quickies(editline):
@@ -517,10 +455,10 @@ def Quickies(editline):
                            "os.rmdir(\"",
                            "os.mkdir(\"",
                            "gc.collect()",
-                           "CullConsoleHistory(4)",
+                           "CullConsoleHistory(rows)",
                            "beepfreq=",
                            "beepdur=",
-                           "usbin()" ],
+                           "fontOverRide=" ],
               "os, etc.": ["un=os.uname()",
                            "ur=os.urandom(",
                            "wd=os.getcwd()",
@@ -532,7 +470,10 @@ def Quickies(editline):
     picked = TextMenu("quit", list(menus.keys()), "Category")
     if picked=="quit":
         return editline
-    return TextMenu("quit", menus[picked], picked)
+    pickedSub = TextMenu("quit", menus[picked], picked)
+    if pickedSub=="quit":
+        return editline
+    return pickedSub
 
 def picoMgr():
     print("UUUUUTRS_Shell")
@@ -597,7 +538,8 @@ def copyAbsoluteOverwrite(source,destination,delSource):
         os.remove(source)
         ConsoleWriteLine("Source file removed")
 
-
+if doesExist("/trsauto.py"):
+    prompt("/trsauto.py")
 
 while True:
     prompt(getLineInput(""))
