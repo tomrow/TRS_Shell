@@ -1,29 +1,56 @@
-#gamecontrol Abstractor 2, for TinyCircuits Thumby
-import machine
-from thumbyGraphics import display
-from thumbyAudio import audio
+#gamecontrol Abstractor 1
+from machine import Pin, SPI
+import keylib
+import st7789
+import font437
+haveKeyLib = False
+try:
+    import keylib
+except ImportError:
+    haveKeyLib = False
+else:
+    haveKeyLib = True
 
-display.setFont("/lib/font5x7.bin", 5, 7, 1)
-originalText = display.drawText
+screen = st7789.ST7789(
+    SPI(2, baudrate=40000000, sck=Pin(36), mosi=Pin(35), miso=None),
+    135,
+    240,
+    reset=Pin(33, Pin.OUT),
+    cs=Pin(37, Pin.OUT),
+    dc=Pin(34, Pin.OUT),
+    backlight=Pin(38, Pin.OUT),
+    rotation=1,
+    color_order=st7789.RGB
+    )
+screen.init()
+screen.on()
+screen.fill(st7789.BLACK)
 def keyU():
-    return btnDown(4)
+    scan = keylib.keyScan()
+    return 12 in scan
 def keyD():
-    return btnDown(6)
+    scan = keylib.keyScan()
+    return 5 in scan
 def keyL():
-    return btnDown(3)
+    scan = keylib.keyScan()
+    return 33 in scan
 def keyR():
-    return btnDown(5)
+    scan = keylib.keyScan()
+    return 34 in scan 
 def keyA():
-    return btnDown(27)
+    scan = keylib.keyScan()
+    return 13 in scan
 def keyB():
-    return btnDown(24)
+    scan = keylib.keyScan()
+    return 49 in scan
 def keyX():
-    return False
+    scan = keylib.keyScan()
+    return 42 in scan
 def keyY():
-    return False
+    return btnDown(0)
 
 def btnDown(pinID):
-    return machine.Pin(pinID).value() == 0
+    return Pin(pinID).value() == 0
 def __init__():
     tomrow = 1
     global pressedCheck
@@ -39,7 +66,7 @@ def drawCharacter(x,y,character,colorWord,fontHandle):
         charRow = characterbits[i]
         for j in range(8):
             if charRow & bit > 0:
-                display.setPixel(x+j,y+i, colorWord)
+                screen.pixel(x+j,y+i, colorWord)
             bit=bit >> 1
 def drawMonoSpaceText(textData, x, y, colorWord, fontHandle, fontWidth): #if you want unicode you'll have to do it yourself
     if type(textData) == type(""):
@@ -66,40 +93,46 @@ def justPressedList():
     pressedCheck = [keyU(),keyD(),keyL(),keyR(),keyA(),keyB(),keyX(),keyY()]
     return jp
 def updDisplay():
-    display.update()
-    display.setFPS(30)
+    print("flip dummy")
 
 def monoFill(color):
-    display.fill(color)
+    if color>0:
+        screen.fill(65535)
+    else:
+        screen.fill(0)
 def monoRectF(x,y,w,h,color):
-    display.drawFilledRectangle(x, y, w, h, color)
+    if color>0:
+        screen.fill_rect(x, y, w, h, 65535)
+    else:
+        screen.fill_rect(x, y, w, h, 65535)
+    
     
 def monoColor(color):
     if color>0:
-        return 1
+        return 65535
     return 0
 def ScreenWidth():
-    return display.width
+    return 240
 def ScreenHeight():
-    return display.height
+    return 135
 def FixedWidthFontSize():
-    return (6, 8)
+    return (8, 8)
 def originalText(string,x,y,colorWord):
-    display.drawText(string, x, y, colorWord)
-class AbstractAudio:
+    screen.text(font437, string, x,y,colorWord, colorWord ^ 65535)
+class AbstractAudio: ##TODO: i2s Audio driver
     def __init__(self, psv):
         self.psv = psv
         print("sound abstractor setting up")
     def play(self, beepfreq, beepdur, beepvol):
-        #psv.envelope(0,0,100,0)
+        #self.psv.envelope(0,0,100,0)
         #this sets up adsr envelope, each value in the order of the acronym.
         #0ms atk,0ms dcy,100% stn, 0ms rel
-        #psv.bend(0,0)
+        #self.psv.bend(0,0)
         #this sets up pitch bend.
         #0hz amount, 0 milliseconds duration.
-        #psv.effects(0,0,0)
+        #self.psv.effects(0,0,0)
         #sets up fx. 
         #0 ms reverb, 0 ms noise, 0% distort
-        audio.setEnabled(beepvol)
-        audio.play(beepfreq, beepdur)
-        
+        print("beep")
+        #self.psv.play(beepfreq, beepdur, beepvol)
+

@@ -3,6 +3,7 @@ import os
 import time
 import gc
 import gcAbstractor
+
 from math import ceil
 from math import floor
 import machine
@@ -108,8 +109,13 @@ def drawConsoleToScreen(winBottom):
         drawText(textArea[winBottom-line], 0, fh*(screenLines-(1+line)), mColor(1),False)
     gcAbstractor.updDisplay()
     
-    
 def getLineInput(start):
+    if (gcAbstractor.haveKeyLib):
+        getLineInputKbd(start)
+    else:
+        getLineInputCtrl(start)
+
+def getLineInputCtrl(start):
     u = 0
     d = 1
     l = 2
@@ -218,6 +224,59 @@ def getLineInput(start):
             drawText(chr(newCharacter),gcAbstractor.ScreenWidth()-fw, rows*fh,1,False)
         gcAbstractor.updDisplay()
     return inputString
+
+def getLineInputKbd(start):
+    inputString = []
+    justPressed = []
+    prevPressed= []
+    cursorPos = 0
+    viewPos = 0
+    keyChar = ""
+    editing = True    
+    while editing:
+        prevPressed=justPressed #remember the key held last loop to compare to this one
+        justPressed = gcAbstractor.keylib.keyScan()
+        if gcAbstractor.keyY():
+            inputString = Quickies(inputString) ##press the y button / g0 on cardputer for shortcuts
+        if justPressed != prevPressed: ##if it's different and not blank, a new key has been pressed, now we do the things
+            keyChar = gcAbstractor.keylib.keyScanToText(justPressed)
+        else: #dont do anything if the same key is still being held, make the current key blank
+            keyChar = ""
+        
+        if keyChar == "\x1b[D": #left
+            cursorPos-=1
+        elif keyChar == "\x1b[C": #right
+            cursorPos-=1
+        elif keyChar == "\x1b":   #esc
+            inputString = "";
+        elif keyChar == "\x08":   #bksp
+            if len(inputString)>0 and cursorPos>0:
+                inputString.pop(cursorPos-1)
+                cursorPos-=1
+        elif keyChar == "\x7f":   #del
+            if len(inputString)>0 and cursorPos <= len(inputString):
+                inputString.pop(cursorPos-1)
+                cursorPos-=1
+        elif keyChar=="\n": #return
+            editing = False
+        elif ord(keyChar[0])>31 and ord(keyChar[0])<127: #printable ascii characters
+            if cursorPos <= len(inputString):
+                inputString.insert(cursorPos, ord(keyChar[0]))
+            else:
+                inputString.append(ord(keyChar[0]))
+            cursorPos+=1
+        if justPressed != prevPressed: #now we draw the input field to the screen
+            while viewPos < cursorPos+5:
+                viewPos+=1
+            while viewPos > cursorPos-5:
+                viewPos-=1
+            if viewPos<0:
+                viewPos=0
+            gcAbstractor.monoRectF(0, rows*fh, gcAbstractor.ScreenWidth(), fh, 1)
+            drawText(inputString[viewPos:viewPos+rows],0,rows*fh,0,False)
+            drawText("_",fw*(cursorPos-viewPos),rows*fh,0,False)
+            gcAbstractor.updDisplay()
+    return bytearray(inputString).decode()
 
 def prompt(inPrompt):
     ConsoleWriteLine(">"+inPrompt)
